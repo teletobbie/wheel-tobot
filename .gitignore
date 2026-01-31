@@ -205,3 +205,14 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# AVR Toolchain (platform-specific, download separately)
+toolchain/
+
+# Build artifacts
+build/
+*.elf
+*.hex
+*.o
+*.d
+*.exe
