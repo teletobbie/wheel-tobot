@@ -10,86 +10,104 @@
 
 void pinMode(Pin pin, bool output)
 {
+  uint8_t bit;
+
   if (output)
   {
-    // Port B (pins 8-13)
-    if (pin >= PB0 && pin <= PB5)
+    // Port D (pins 0-7)
+    if (pin >= PIN_0 && pin <= PIN_7)
     {
-      DDRB |= (1 << (pin - PB0));
+      bit = pin - PIN_0;
+      DDRD |= (1 << bit);
+    }
+    // Port B (pins 8-13)
+    else if (pin >= PIN_8 && pin <= PIN_13)
+    {
+      bit = pin - PIN_8;
+      DDRB |= (1 << bit);
     }
     // Port C (analog pins A0-A5)
-    else if (pin >= PC0 && pin <= PC5)
+    else if (pin >= PIN_A0 && pin <= PIN_A5)
     {
-      DDRC |= (1 << (pin - PC0));
-    }
-    // Port D (pins 0-7)
-    else if (pin >= PD0 && pin <= PD7)
-    {
-      DDRD |= (1 << (pin - PD0));
+      bit = pin - PIN_A0;
+      DDRC |= (1 << bit);
     }
   }
   else
   {
     // Set as input
-    if (pin >= PB0 && pin <= PB5)
+    if (pin >= PIN_0 && pin <= PIN_7)
     {
-      DDRB &= ~(1 << (pin - PB0));
+      bit = pin - PIN_0;
+      DDRD &= ~(1 << bit);
     }
-    else if (pin >= PC0 && pin <= PC5)
+    else if (pin >= PIN_8 && pin <= PIN_13)
     {
-      DDRC &= ~(1 << (pin - PC0));
+      bit = pin - PIN_8;
+      DDRB &= ~(1 << bit);
     }
-    else if (pin >= PD0 && pin <= PD7)
+    else if (pin >= PIN_A0 && pin <= PIN_A5)
     {
-      DDRD &= ~(1 << (pin - PD0));
+      bit = pin - PIN_A0;
+      DDRC &= ~(1 << bit);
     }
   }
 }
 
 void digitalWrite(Pin pin, bool high)
 {
-  // Port B (pins 8-13)
-  if (pin >= PB0 && pin <= PB5)
+  uint8_t bit;
+
+  // Port D (pins 0-7)
+  if (pin >= PIN_0 && pin <= PIN_7)
   {
+    bit = pin - PIN_0;
     if (high)
-      PORTB |= (1 << (pin - PB0));
+      PORTD |= (1 << bit);
     else
-      PORTB &= ~(1 << (pin - PB0));
+      PORTD &= ~(1 << bit);
+  }
+  // Port B (pins 8-13)
+  else if (pin >= PIN_8 && pin <= PIN_13)
+  {
+    bit = pin - PIN_8;
+    if (high)
+      PORTB |= (1 << bit);
+    else
+      PORTB &= ~(1 << bit);
   }
   // Port C (analog pins A0-A5)
-  else if (pin >= PC0 && pin <= PC5)
+  else if (pin >= PIN_A0 && pin <= PIN_A5)
   {
+    bit = pin - PIN_A0;
     if (high)
-      PORTC |= (1 << (pin - PC0));
+      PORTC |= (1 << bit);
     else
-      PORTC &= ~(1 << (pin - PC0));
-  }
-  // Port D (pins 0-7)
-  else if (pin >= PD0 && pin <= PD7)
-  {
-    if (high)
-      PORTD |= (1 << (pin - PD0));
-    else
-      PORTD &= ~(1 << (pin - PD0));
+      PORTC &= ~(1 << bit);
   }
 }
 
 bool digitalRead(Pin pin)
 {
-  // Port B (pins 8-13)
-  if (pin >= PB0 && pin <= PB5)
+  uint8_t bit;
+
+  // Port D (pins 0-7)
+  if (pin >= PIN_0 && pin <= PIN_7)
   {
-    return (PINB & (1 << (pin - PB0))) != 0;
+    bit = pin - PIN_0;
+    return (PIND & (1 << bit)) != 0;
+  }
+  // Port B (pins 8-13)
+  else if (pin >= PIN_8 && pin <= PIN_13)
+  {
+    bit = pin - PIN_8;
+    return (PINB & (1 << bit)) != 0;
   }
   // Port C (analog pins A0-A5)
-  else if (pin >= PC0 && pin <= PC5)
+  else if (pin >= PIN_A0 && pin <= PIN_A5)
   {
-    return (PINC & (1 << (pin - PC0))) != 0;
-  }
-  // Port D (pins 0-7)
-  else if (pin >= PD0 && pin <= PD7)
-  {
-    return (PIND & (1 << (pin - PD0))) != 0;
+    bit = pin - PIN_A0;
+    return (PINC & (1 << bit)) != 0;
   }
   return false;
 }
@@ -97,29 +115,29 @@ bool digitalRead(Pin pin)
 void analogWrite(Pin pin, uint8_t value)
 {
   // Timer0 (pins 5 and 6)
-  if (pin == PIN_6 || pin == PD6)
+  if (pin == PIN_6)
   {
     OCR0A = value; // Timer0 channel A (pin 6)
   }
-  else if (pin == PIN_5 || pin == PD5)
+  else if (pin == PIN_5)
   {
     OCR0B = value; // Timer0 channel B (pin 5)
   }
   // Timer1 (pins 9 and 10)
-  else if (pin == PIN_9 || pin == PB1)
+  else if (pin == PIN_9)
   {
     OCR1A = value; // Timer1 channel A (pin 9)
   }
-  else if (pin == PIN_10 || pin == PB2)
+  else if (pin == PIN_10)
   {
     OCR1B = value; // Timer1 channel B (pin 10)
   }
   // Timer2 (pins 3 and 11)
-  else if (pin == PIN_3 || pin == PD3)
+  else if (pin == PIN_3)
   {
     OCR2B = value; // Timer2 channel B (pin 3)
   }
-  else if (pin == PIN_11 || pin == PB3)
+  else if (pin == PIN_11)
   {
     OCR2A = value; // Timer2 channel A (pin 11)
   }

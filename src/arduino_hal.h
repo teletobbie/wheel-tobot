@@ -20,31 +20,29 @@
  */
 enum Pin
 {
-  // Digital pins (Port D)
-  PIN_0 = PD0, ///< Arduino digital pin 0 (RX)
-  PIN_1 = PD1, ///< Arduino digital pin 1 (TX)
-  PIN_2 = PD2, ///< Arduino digital pin 2
-  PIN_3 = PD3, ///< Arduino digital pin 3 (PWM)
-  PIN_4 = PD4, ///< Arduino digital pin 4
-  PIN_5 = PD5, ///< Arduino digital pin 5 (PWM)
-  PIN_6 = PD6, ///< Arduino digital pin 6 (PWM)
-  PIN_7 = PD7, ///< Arduino digital pin 7
+  // Digital pins - using unique non-overlapping values
+  PIN_0 = 0,   ///< Arduino digital pin 0 (RX, Port D0)
+  PIN_1 = 1,   ///< Arduino digital pin 1 (TX, Port D1)
+  PIN_2 = 2,   ///< Arduino digital pin 2 (Port D2)
+  PIN_3 = 3,   ///< Arduino digital pin 3 (PWM, Port D3)
+  PIN_4 = 4,   ///< Arduino digital pin 4 (Port D4)
+  PIN_5 = 5,   ///< Arduino digital pin 5 (PWM, Port D5)
+  PIN_6 = 6,   ///< Arduino digital pin 6 (PWM, Port D6)
+  PIN_7 = 7,   ///< Arduino digital pin 7 (Port D7)
+  PIN_8 = 8,   ///< Arduino digital pin 8 (Port B0)
+  PIN_9 = 9,   ///< Arduino digital pin 9 (PWM, Port B1)
+  PIN_10 = 10, ///< Arduino digital pin 10 (PWM, Port B2)
+  PIN_11 = 11, ///< Arduino digital pin 11 (PWM, Port B3)
+  PIN_12 = 12, ///< Arduino digital pin 12 (Port B4)
+  PIN_13 = 13, ///< Arduino digital pin 13 (LED_BUILTIN, Port B5)
 
-  // Digital pins (Port B)
-  PIN_8 = PB0,  ///< Arduino digital pin 8
-  PIN_9 = PB1,  ///< Arduino digital pin 9 (PWM)
-  PIN_10 = PB2, ///< Arduino digital pin 10 (PWM)
-  PIN_11 = PB3, ///< Arduino digital pin 11 (PWM)
-  PIN_12 = PB4, ///< Arduino digital pin 12
-  PIN_13 = PB5, ///< Arduino digital pin 13 (LED_BUILTIN)
-
-  // Analog pins (Port C) - can also be used as digital
-  PIN_A0 = PC0, ///< Arduino analog pin A0 (digital 14)
-  PIN_A1 = PC1, ///< Arduino analog pin A1 (digital 15)
-  PIN_A2 = PC2, ///< Arduino analog pin A2 (digital 16)
-  PIN_A3 = PC3, ///< Arduino analog pin A3 (digital 17)
-  PIN_A4 = PC4, ///< Arduino analog pin A4 (digital 18, SDA)
-  PIN_A5 = PC5  ///< Arduino analog pin A5 (digital 19, SCL)
+  // Analog pins - can also be used as digital
+  PIN_A0 = 14, ///< Arduino analog pin A0 (digital 14, Port C0)
+  PIN_A1 = 15, ///< Arduino analog pin A1 (digital 15, Port C1)
+  PIN_A2 = 16, ///< Arduino analog pin A2 (digital 16, Port C2)
+  PIN_A3 = 17, ///< Arduino analog pin A3 (digital 17, Port C3)
+  PIN_A4 = 18, ///< Arduino analog pin A4 (digital 18, SDA, Port C4)
+  PIN_A5 = 19  ///< Arduino analog pin A5 (digital 19, SCL, Port C5)
 };
 
 /**
