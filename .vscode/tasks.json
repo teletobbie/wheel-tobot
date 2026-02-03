@@ -24,6 +24,7 @@
         "src\\controller.cpp",
         "src\\arduino_hal.cpp",
         "src\\motor_driver.cpp",
+        "src\\blink.cpp",
         "-o",
         "build\\controller.elf"
       ],
@@ -79,6 +80,64 @@
       "group": "build",
       "problemMatcher": [],
       "detail": "Build ELF and HEX files for Arduino Uno in build/ folder"
+    },
+    {
+      "type": "shell",
+      "label": "Upload to Arduino Uno (COM5)",
+      "command": "avrdude",
+      "args": [
+        "-p",
+        "atmega328p",
+        "-c",
+        "arduino",
+        "-P",
+        "COM5",
+        "-b",
+        "115200",
+        "-D",
+        "-U",
+        "flash:w:build\\controller.hex:i"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "dependsOn": ["Build Complete Arduino Uno Project"],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "detail": "Upload compiled hex file to Arduino Uno on COM5"
+    },
+    {
+      "type": "shell",
+      "label": "Upload to Arduino Uno (COM6)",
+      "command": "avrdude",
+      "args": [
+        "-p",
+        "atmega328p",
+        "-c",
+        "arduino",
+        "-P",
+        "COM6",
+        "-b",
+        "115200",
+        "-D",
+        "-U",
+        "flash:w:build\\controller.hex:i"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "dependsOn": ["Build Complete Arduino Uno Project"],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "detail": "Upload compiled hex file to Arduino Uno on COM6"
     },
     {
       "type": "shell",
