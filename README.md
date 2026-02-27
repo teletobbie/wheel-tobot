@@ -4,7 +4,7 @@ The wheel tobot is a autonomous-driving two wheel robot with vision capabilities
 ## Hardware
 - **Raspberry Pi Zero 2W** - Vision processing
 - **Arduino Uno (ATmega328P)** - Motor control execution
-- **PiCamera** (v1, v2, or HQ) - Line following vision
+- **Freenove Camera Module IMX219** - Line following vision
 - **TB6612FNG Dual H-Bridge Motor Driver** - Motor control
 - **2x DC Motors** - Drivetrain
 - **2x Samsung INR18650-25R Li-ion batteries** - Power (7.4V, 2500mAh, 20A)
@@ -172,14 +172,64 @@ toolchain/              - AVR toolchain (gitignored)
 
 ## Raspberry Pi Setup
 
+### Camera Module Setup (Freenove IMX219)
+
+**Physical Installation:**
+1. **Power off Raspberry Pi** before connecting camera
+2. Locate the Camera Module port (between HDMI and USB on Pi Zero 2W)
+3. Gently pull up the plastic clip on the camera port
+4. Insert the ribbon cable with **contacts facing the contacts in the port**
+5. Push the plastic clip back down to secure
+
+**Software Configuration:**
+
+```bash
+# 1. Edit config file
+sudo nano /boot/firmware/config.txt
+
+# 2. Disable automatic camera detection (find this line and change to 0)
+camera_auto_detect=0
+
+# 3. Add camera overlay at the END of the file:
+dtoverlay=imx219
+
+# Note: For Raspberry Pi 5, use: dtoverlay=imx219,cam0
+# Note: For OV5647 camera, use: dtoverlay=ov5647 instead
+
+# 4. Save (Ctrl+O, Enter) and exit (Ctrl+X)
+
+# 5. Reboot
+sudo reboot
+
+# 6. Verify camera is detected
+ls /dev/video*
+# Should show: /dev/video0
+
+# 7. Test camera
+rpicam-hello
+# Should show 5-second preview
+
+# 8. Capture test image
+rpicam-jpeg -o test.jpg -t 2000 --width 800 --height 600
+```
+
+**Troubleshooting:**
+- If camera not detected, check ribbon cable is fully inserted with correct orientation
+- Ensure ribbon cable contacts face the right direction on BOTH ends
+- Try reconnecting while Pi is powered off
+- Verify `dtoverlay=imx219` is at the END of config.txt
+
 ### Software Installation
 ```bash
 # Update system
 sudo apt update && sudo apt upgrade -y
 
-# Install Python dependencies
+# Install Python dependencies (recommended method for Raspberry Pi)
 sudo apt install -y python3-pip python3-opencv python3-numpy
 sudo apt install -y python3-picamera2 python3-rpi.gpio
+
+# Alternative: Install from requirements.txt
+# pip3 install -r src/camera/requirements.txt
 
 # Enable camera
 sudo raspi-config
@@ -200,6 +250,6 @@ python3 ~/follow-line.py
 
 ### GPIO Setup Notes
 - Script uses BCM numbering internally
-- Ensure /boot/config.txt has `enable_uart=1` if using serial (not needed for GPIO mode)
+- GPIO wiring: 3 command pins (GPIO 17, 27, 22) + GND to Arduino
 - Run with `sudo` if GPIO access denied
 

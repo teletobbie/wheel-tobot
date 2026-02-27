@@ -1,4 +1,5 @@
 from picamera2 import Picamera2
+from libcamera import Transform
 import time
 import cv2
 import numpy as np
@@ -36,13 +37,12 @@ def send_command(cmd):
     GPIO.output(CMD_BIT0, bool(cmd & 0b001))
     GPIO.output(CMD_BIT1, bool(cmd & 0b010))
     GPIO.output(CMD_BIT2, bool(cmd & 0b100))
-    print(f"Sent command: {cmd}")
 
 # Setup camera with picamera2
 camera = Picamera2()
 camera_config = camera.create_preview_configuration(
     main={"size": (CAMERA_WIDTH, CAMERA_HEIGHT), "format": "RGB888"},
-    transform={"vflip": True, "hflip": True}  # Rotation 180
+    transform=Transform(hflip=1, vflip=1)  # Rotation 180
 )
 camera.configure(camera_config)
 camera.start()

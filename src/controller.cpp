@@ -14,7 +14,7 @@
 #include "motor_driver.h"
 #include <util/delay.h>
 
-#define MOTOR_SPEED 180 // 0-255
+#define MOTOR_SPEED 50 // 0-255
 
 // GPIO pins for command input from Pi
 #define CMD_BIT0 PIN_4 // LSB
