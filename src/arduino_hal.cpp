@@ -54,7 +54,7 @@ void PinMode(Pin pin, bool output)
   }
 }
 
-void digitalWrite(Pin pin, bool high)
+void DigitalWrite(Pin pin, bool high)
 {
   uint8_t bit;
 
