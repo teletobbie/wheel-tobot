@@ -6,11 +6,6 @@
 #ifndef BLINK_H
 #define BLINK_H
 
-/**
- * @brief Test Arduino by blinking built-in LED
- *
- * Blinks LED on pin 13 five times to verify Arduino is operational.
- */
-void testArduino();
+void TestArduino();
 
 #endif // BLINK_H

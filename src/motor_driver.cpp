@@ -35,60 +35,72 @@ static void setMotor(MotorPins motor, int16_t speed)
   if (speed > 0)
   {
     // Forward direction
-    digitalWrite(motor.direction1, true);
-    digitalWrite(motor.direction2, false);
-    analogWrite(motor.pwm, speed);
+    DigitalWrite(motor.direction1, true);
+    DigitalWrite(motor.direction2, false);
+    AnalogWrite(motor.pwm, speed);
   }
   else if (speed < 0)
   {
     // Reverse direction
-    digitalWrite(motor.direction1, false);
-    digitalWrite(motor.direction2, true);
-    analogWrite(motor.pwm, -speed);
+    DigitalWrite(motor.direction1, false);
+    DigitalWrite(motor.direction2, true);
+    AnalogWrite(motor.pwm, -speed);
   }
   else
   {
     // Stop (brake by setting both direction pins HIGH)
-    digitalWrite(motor.direction1, true);
-    digitalWrite(motor.direction2, true);
-    analogWrite(motor.pwm, 0);
+    DigitalWrite(motor.direction1, true);
+    DigitalWrite(motor.direction2, true);
+    AnalogWrite(motor.pwm, 0);
   }
 }
 
-void setupMotors()
+void SetupMotors()
 {
   // Configure all motor control pins as outputs
-  pinMode(motorA.direction1, true);
-  pinMode(motorA.direction2, true);
-  pinMode(motorA.pwm, true);
-  pinMode(motorB.direction1, true);
-  pinMode(motorB.direction2, true);
-  pinMode(motorB.pwm, true);
-  pinMode(standbyPin, true);
+  PinMode(motorA.direction1, true);
+  PinMode(motorA.direction2, true);
+  PinMode(motorA.pwm, true);
+  PinMode(motorB.direction1, true);
+  PinMode(motorB.direction2, true);
+  PinMode(motorB.pwm, true);
+  PinMode(standbyPin, true);
+
+  // Disable SPI to free pin 12 (MISO) for use as digital output
+  // Pin 12 (PB4/MISO) is used for Motor B direction control
+  SPCR = 0;
 
   // Initialize PWM hardware
-  initPWM();
+  InitPWM();
 
-  // Disable PWM output on pin 10 (we use it as digital output for STBY)
-  // Clear COM1B1 and COM1B0 bits to disconnect OC1B from pin 10
+  // Disable PWM output on pins used for direction control
+  // These pins must be pure digital outputs, not PWM
+
+  // Disconnect pin 9 (OC1A) from Timer1 - used for Motor A direction
+  TCCR1A &= ~((1 << COM1A1) | (1 << COM1A0));
+
+  // Disconnect pin 10 (OC1B) from Timer1 - used for STBY
   TCCR1A &= ~((1 << COM1B1) | (1 << COM1B0));
 
+  // Disconnect pin 11 (OC2A) from Timer2 - used for Motor B direction
+  TCCR2A &= ~((1 << COM2A1) | (1 << COM2A0));
+
   // Enable motor driver (TB6612FNG standby pin must be HIGH)
-  digitalWrite(standbyPin, true);
+  DigitalWrite(standbyPin, true);
 }
 
-void motorA_drive(int16_t speed)
+void MotorA_Drive(int16_t speed)
 {
   setMotor(motorA, speed);
 }
 
-void motorB_drive(int16_t speed)
+void MotorB_Drive(int16_t speed)
 {
   setMotor(motorB, speed);
 }
 
-void stopAllMotors()
+void StopAllMotors()
 {
-  motorA_drive(0);
-  motorB_drive(0);
+  MotorA_Drive(0);
+  MotorB_Drive(0);
 }

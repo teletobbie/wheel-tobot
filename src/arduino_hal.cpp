@@ -8,7 +8,7 @@
 
 #include "arduino_hal.h"
 
-void pinMode(Pin pin, bool output)
+void PinMode(Pin pin, bool output)
 {
   uint8_t bit;
 
@@ -87,7 +87,7 @@ void digitalWrite(Pin pin, bool high)
   }
 }
 
-bool digitalRead(Pin pin)
+bool DigitalRead(Pin pin)
 {
   uint8_t bit;
 
@@ -112,7 +112,7 @@ bool digitalRead(Pin pin)
   return false;
 }
 
-void analogWrite(Pin pin, uint8_t value)
+void AnalogWrite(Pin pin, uint8_t value)
 {
   // Timer0 (pins 5 and 6)
   if (pin == PIN_6)
@@ -143,7 +143,7 @@ void analogWrite(Pin pin, uint8_t value)
   }
 }
 
-uint16_t analogRead(AnalogChannel channel)
+uint16_t AnalogRead(AnalogChannel channel)
 {
   // Select ADC channel (0-5)
   ADMUX = (ADMUX & 0xF0) | (channel & 0x0F);
@@ -159,7 +159,7 @@ uint16_t analogRead(AnalogChannel channel)
   return ADC;
 }
 
-void initPWM()
+void InitPWM()
 {
   // Configure Timer0 for Fast PWM mode (pins 5, 6)
   // COM0A1, COM0B1: Clear OC0A/OC0B on compare match, set at BOTTOM
@@ -177,7 +177,7 @@ void initPWM()
   TCCR2B = (1 << CS21); // Prescaler 8
 }
 
-void initADC()
+void InitADC()
 {
   // Set reference voltage to AVCC (5V)
   ADMUX = (1 << REFS0);

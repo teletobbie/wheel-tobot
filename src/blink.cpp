@@ -13,17 +13,17 @@
  * Blinks the LED on pin 13 five times to indicate Arduino is working.
  * Useful for debugging hardware issues.
  */
-void testArduino()
+void TestArduino()
 {
   // Configure pin 13 (built-in LED) as output
-  pinMode(PIN_13, true);
+  PinMode(PIN_13, true);
 
   // Blink 5 times
   for (int i = 0; i < 5; i++)
   {
-    digitalWrite(PIN_13, true); // LED ON
+    DigitalWrite(PIN_13, true); // LED ON
     _delay_ms(200);
-    digitalWrite(PIN_13, false); // LED OFF
+    DigitalWrite(PIN_13, false); // LED OFF
     _delay_ms(200);
   }
 }
