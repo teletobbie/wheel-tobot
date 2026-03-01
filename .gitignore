@@ -218,5 +218,10 @@ build/
 *.o
 *.d
 *.exe
+*.zip
 
-Freenove_Camera_Module_for_Raspberry_Pi-master
+# Freenove Camera Module for Raspberry Pi (contains large precompiled binaries)
+/Freenove_Camera_Module_for_Raspberry_Pi-master
+
+# debug folders
+/debug_frames
