@@ -13,6 +13,9 @@
 #include <avr/io.h>
 #include <stdint.h>
 
+#define UART_BAUD_SELECT(baudRate, xtalCpu) ((xtalCpu) / ((baudRate) * 16UL) - 1)
+#define UART_NO_DATA 0x0100
+
 enum Pin
 {
   // Digital pins - using unique non-overlapping values
@@ -55,5 +58,10 @@ void AnalogWrite(Pin pin, uint8_t value);
 uint16_t AnalogRead(AnalogChannel channel);
 void InitPWM();
 void InitADC();
+
+void Uart_Init(uint16_t ubrr);
+uint16_t Uart_Getc();
+void Uart_Putc(uint8_t data);
+void Uart_Puts(const char *str);
 
 #endif // ARDUINO_HAL_H

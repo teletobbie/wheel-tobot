@@ -51,6 +51,11 @@ Common GND: Battery(-) = Breadboard GND = Pi GND = Arduino GND = Motor Driver GN
 - [ ] Battery+ (7.4V) → Motor Driver VM
 - [ ] Battery- → Motor Driver GND (common ground)
 
+**UART Communication:**
+- [ ] Raspberry Pi GPIO 14 (Pin 8) → Arduino Pin 0 (RX)
+- [ ] (Optional) Arduino Pin 1 (TX) → Raspberry Pi GPIO 15 (Pin 10) via voltage divider
+- [ ] Verify common ground connection between Pi and Arduino
+
 **Estimated Runtime:**
 - Light use (slow driving): ~1.5 hours
 - Heavy use (full speed): ~45 minutes
@@ -67,34 +72,49 @@ Common GND: Battery(-) = Breadboard GND = Pi GND = Arduino GND = Motor Driver GN
    - Breadboard to devices: 22-24 AWG
 5. **Don't discharge batteries below 6.0V** (3.0V per cell)
 
-## Communication: Pi → Arduino via GPIO
+## Communication: Pi → Arduino via UART Serial
 
-Communication is **one-way** using 3-bit binary encoding via GPIO pins.
+Communication uses **UART serial** at 115200 baud for real-time line following control.
 
-### GPIO Command Interface
+### UART Connection
 
 **Raspberry Pi → Arduino:**
-| Pi GPIO (BCM) | Pi Physical Pin | Arduino Pin | Signal |
-|---------------|-----------------|-------------|--------|
-| GPIO 17 | 11 | Pin 4 | Command Bit 0 (LSB) |
-| GPIO 27 | 13 | Pin 6 | Command Bit 1 |
-| GPIO 22 | 15 | Pin 7 | Command Bit 2 (MSB) |
+| Raspberry Pi | Pi Physical Pin | Arduino Pin | Signal |
+|--------------|-----------------|-------------|--------|
+| GPIO 14 (TXD) | 8 | Pin 0 (RX) | Transmit (Pi → Arduino) |
+| GPIO 15 (RXD) | 10 | Pin 1 (TX) | Receive (Arduino → Pi, optional) |
 | GND | 6, 9, 14, etc. | GND | Common Ground |
 
-### Command Encoding (3-bit)
+**Enable Hardware UART on Raspberry Pi:**
+```bash
+sudo raspi-config
+# Interface Options → Serial Port
+# Login shell over serial: NO
+# Serial hardware enabled: YES
+# Reboot when prompted
+```
 
-| Binary | Decimal | Command |
-|--------|---------|---------|
-| 000 | 0 | Stop |
-| 001 | 1 | Forward |
-| 010 | 2 | Backward |
-| 011 | 3 | Turn Left |
-| 100 | 4 | Turn Right |
+### Serial Protocol
+
+**Packet Format:** 4 bytes per command
+```
+[SYNC] [ERROR_HIGH] [ERROR_LOW] [CHECKSUM]
+0xFF   (error>>8)   (error&0xFF) (0xFF+high+low)&0xFF
+```
+
+**Error Value Range:** -320 to +320 pixels
+- **Negative values**: Line detected left of center → turn left
+- **Positive values**: Line detected right of center → turn right  
+- **Zero**: Line centered → drive straight
+
+**Control System:**
+- Proportional (P) control with differential drive
+- Adjusts left/right motor speeds based on error magnitude
+- Safety timeout: Motors stop if no data received for 1 second
 
 **Voltage Levels:**
-- Pi outputs 3.3V (safe for Arduino 5V input - reads as HIGH)
-- Arduino only reads (input mode, high impedance)
-- No level shifters needed for one-way communication
+- Pi UART outputs 3.3V (safe for Arduino 5V RX input)
+- Arduino UART outputs 5V (use voltage divider if Pi RX is used)
 
 ## TB6612FNG Motor Driver Connections
 
@@ -159,10 +179,11 @@ Or use Device Manager → Ports (COM & LPT)
 ```
 src/
   camera/
-    follow-line.py      - Pi: Vision processing and line following
-  controller.cpp        - Arduino: GPIO command receiver and motor control
+    follow-line.py      - Pi: Vision processing & UART serial communication
+    requirements.txt    - Python dependencies
+  controller.cpp        - Arduino: UART serial receiver & proportional motor control
   motor_driver.h/cpp    - TB6612FNG motor driver interface
-  arduino_hal.h/cpp     - Hardware abstraction layer (GPIO, PWM, ADC)
+  arduino_hal.h/cpp     - Hardware abstraction layer (GPIO, PWM, UART)
   blink.h/cpp          - LED diagnostic functions
 build/                  - Compiled binaries (gitignored)
 toolchain/              - AVR toolchain (gitignored)
@@ -226,14 +247,17 @@ sudo apt update && sudo apt upgrade -y
 
 # Install Python dependencies (recommended method for Raspberry Pi)
 sudo apt install -y python3-pip python3-opencv python3-numpy
-sudo apt install -y python3-picamera2 python3-rpi.gpio
+sudo apt install -y python3-picamera2 python3-serial
 
 # Alternative: Install from requirements.txt
 # pip3 install -r src/camera/requirements.txt
 
-# Enable camera
+# Enable camera and UART
 sudo raspi-config
 # Navigate to: Interface Options → Camera → Enable
+# Navigate to: Interface Options → Serial Port
+#   - Login shell over serial: NO
+#   - Serial hardware enabled: YES
 # Reboot when prompted
 ```
 
@@ -248,8 +272,17 @@ python3 ~/follow-line.py
 # Press Ctrl+C to quit
 ```
 
-### GPIO Setup Notes
-- Script uses BCM numbering internally
-- GPIO wiring: 3 command pins (GPIO 17, 27, 22) + GND to Arduino
-- Run with `sudo` if GPIO access denied
+### UART Setup Notes
+- Hardware UART uses GPIO 14 (TX) and GPIO 15 (RX)
+- Must disable serial console login in `raspi-config`
+- Serial device: `/dev/ttyS0` (hardware UART) or `/dev/ttyAMA0` (depending on Pi model)
+- Baud rate: 115200
+- Connection: Pi TX → Arduino RX, common ground required
+- No level shifters needed for Pi TX → Arduino RX (3.3V is valid HIGH for 5V Arduino)
+
+**Verify UART is enabled:**
+```bash
+ls -l /dev/serial*
+# Should show: /dev/serial0 -> ttyS0 or ttyAMA0
+``` 
 

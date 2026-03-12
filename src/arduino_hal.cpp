@@ -186,3 +186,61 @@ void InitADC()
   // ADC needs 50-200kHz for optimal accuracy
   ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
 }
+
+/**
+ * @brief Initialize UART serial communication
+ * @param ubrr Baud rate register value (use UART_BAUD_SELECT macro)
+ */
+void Uart_Init(uint16_t ubrr)
+{
+  // Set baud rate
+  UBRR0H = (uint8_t)(ubrr >> 8);
+  UBRR0L = (uint8_t)ubrr;
+
+  // Enable receiver and transmitter
+  UCSR0B = (1 << RXEN0) | (1 << TXEN0);
+
+  // Set frame format: 8 data bits, 1 stop bit, no parity
+  UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+}
+
+/**
+ * @brief Receive a byte from UART (non-blocking)
+ * @return Received byte or UART_NO_DATA if no data available
+ * @note Check return value with: if (!(received & UART_NO_DATA))
+ */
+uint16_t Uart_Getc()
+{
+  // Check if data is available
+  if (UCSR0A & (1 << RXC0))
+  {
+    return UDR0;
+  }
+  return UART_NO_DATA;
+}
+
+/**
+ * @brief Transmit a byte via UART (blocking)
+ * @param data Byte to transmit
+ */
+void Uart_Putc(uint8_t data)
+{
+  // Wait for empty transmit buffer
+  while (!(UCSR0A & (1 << UDRE0)))
+    ;
+
+  // Put data into buffer, sends the data
+  UDR0 = data;
+}
+
+/**
+ * @brief Transmit a null-terminated string via UART
+ * @param str Pointer to string to transmit
+ */
+void Uart_Puts(const char *str)
+{
+  while (*str)
+  {
+    Uart_Putc(*str++);
+  }
+}

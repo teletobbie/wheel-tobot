@@ -4,40 +4,53 @@ import time
 from datetime import datetime
 import cv2
 import numpy as np
-import RPi.GPIO as GPIO
+import serial
 
 # Configuration
 MAX_DEBUG_FRAMES = 50  # Limit number of saved frames to prevent memory issues
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 360
 
-# GPIO pins for Arduino communication (BCM numbering)
-CMD_BIT0 = 17  # Physical pin 11 → Arduino Pin 4
-CMD_BIT1 = 27  # Physical pin 13 → Arduino Pin 6
-CMD_BIT2 = 22  # Physical pin 15 → Arduino Pin 7
+# Serial communication setup
+SERIAL_PORT = '/dev/ttyS0'  # Raspberry Pi hardware UART (TX=GPIO14, RX=GPIO15)
+BAUD_RATE = 115200
 
-# Command encoding (3-bit binary)
-CMD_STOP = 0     # 000
-CMD_FORWARD = 1  # 001
-CMD_BACKWARD = 2 # 010
-CMD_LEFT = 3     # 011
-CMD_RIGHT = 4    # 100
+# Initialize serial connection to Arduino
+try:
+    arduino_serial = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=0.01)
+    time.sleep(2)  # Wait for Arduino to reset after serial connection
+    print(f"Serial connection established on {SERIAL_PORT} at {BAUD_RATE} baud")
+except Exception as e:
+    print(f"Failed to open serial port: {e}")
+    print("Make sure UART is enabled in raspi-config and Arduino is connected")
+    exit(1)
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(CMD_BIT0, GPIO.OUT)
-GPIO.setup(CMD_BIT1, GPIO.OUT)
-GPIO.setup(CMD_BIT2, GPIO.OUT)
-
-# Initialize - all low
-GPIO.output(CMD_BIT0, False)
-GPIO.output(CMD_BIT1, False)
-GPIO.output(CMD_BIT2, False)
-
-def send_command(cmd):
-    """Send 3-bit command to Arduino via GPIO"""
-    GPIO.output(CMD_BIT0, bool(cmd & 0b001))
-    GPIO.output(CMD_BIT1, bool(cmd & 0b010))
-    GPIO.output(CMD_BIT2, bool(cmd & 0b100))
+def send_error_value(error):
+    """Send proportional error value to Arduino via UART
+    
+    Args:
+        error: Line position error in pixels (-320 to +320)
+               Negative = line on left, Positive = line on right
+    
+    Protocol: [SYNC][ERROR_HIGH][ERROR_LOW][CHECKSUM]
+    """
+    # Clamp error to valid range
+    error = max(-320, min(320, int(error)))
+    
+    # Convert to signed 16-bit bytes
+    error_signed = error if error >= 0 else (0x10000 + error)
+    error_high = (error_signed >> 8) & 0xFF
+    error_low = error_signed & 0xFF
+    
+    # Simple checksum
+    checksum = (0xFF + error_high + error_low) & 0xFF
+    
+    # Send packet
+    packet = bytes([0xFF, error_high, error_low, checksum])
+    try:
+        arduino_serial.write(packet)
+    except Exception as e:
+        print(f"Serial write error: {e}")
 
 # Setup camera with picamera2
 camera = Picamera2()
@@ -50,15 +63,15 @@ time.sleep(1)  # Camera warm-up
 
 center_x = CAMERA_WIDTH // 2  # Center of image
 
-print("Starting line following with GPIO control...")
-send_command(CMD_STOP)  # Start with motors stopped
+print("Starting line following with UART serial control...")
+send_error_value(0)  # Start with no error (motors will be controlled by Arduino)
 
 frame_count = 0
 start_time = time.time()
 last_status_time = start_time
 # add frame and time counters for debugging
 images = []
-last_turn_command = CMD_STOP  # Track last turn direction for line search
+last_error = 0  # Track last error for line search
 
 try:
     while True:
@@ -71,8 +84,8 @@ try:
         Blackline = cv2.dilate(Blackline, kernel, iterations=9)	
         contours, hierarchy = cv2.findContours(Blackline.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)	
         
-        command = CMD_STOP  # Default: Stop
-        command_text = "STOP"
+        error = 0  # Default: No error (centered)
+        command_text = "CENTERED"
         line_center = None
         
         if len(contours) > 0:
@@ -81,39 +94,29 @@ try:
             x, y, w, h = cv2.boundingRect(largest_contour)
             line_center = x + (w / 2)
             
-            # Calculate where line is relative to center
-            error = line_center - center_x
+            # Calculate proportional error (pixels from center)
+            error = int(line_center - center_x)
+            last_error = error  # Remember for line search
             
-            # Send commands based on line position (wider forward threshold)
-            if abs(error) < 80:  # Increased from 40 to 80 for smoother forward motion
-                command = CMD_FORWARD
-                command_text = "FORWARD"
-                last_turn_command = CMD_FORWARD  # Reset search direction
-            elif error < -80:
-                command = CMD_LEFT
-                command_text = "LEFT"
-                last_turn_command = CMD_LEFT  # Remember we were turning left
+            # Generate status text based on error magnitude
+            if abs(error) < 20:
+                command_text = f"CENTERED (err:{error:+d})"
+            elif error < 0:
+                command_text = f"TURN LEFT (err:{error:+d})"
             else:
-                command = CMD_RIGHT
-                command_text = "RIGHT"
-                last_turn_command = CMD_RIGHT  # Remember we were turning right
-        
-            # Send to Arduino via GPIO 
-            send_command(command)
+                command_text = f"TURN RIGHT (err:{error:+d})"
         else:
-            # No line detected - search based on last known direction
-            if last_turn_command == CMD_LEFT:
-                command = CMD_LEFT
-                command_text = "SEARCH LEFT"
-                send_command(command)
-            elif last_turn_command == CMD_RIGHT:
-                command = CMD_RIGHT
-                command_text = "SEARCH RIGHT"
-                send_command(command)
-            else:
-                # Was going forward, stop to avoid running away
-                send_command(CMD_STOP)
+            # No line detected - continue in last known direction
+            if abs(last_error) < 20:
+                error = 0  # Was centered, stop
                 command_text = "STOP (No line)"
+            else:
+                # Search in the direction line was last seen
+                error = last_error  # Maintain last correction
+                command_text = f"SEARCH (err:{error:+d})"
+        
+        # Send proportional error to Arduino
+        send_error_value(error)
         
         # Update frame counter
         frame_count += 1
@@ -179,9 +182,10 @@ finally:
 
     # Cleanup
     print("Cleaning up...")
-    send_command(CMD_STOP)  # Stop motors
+    send_error_value(0)  # Send zero error (stop motors)
+    time.sleep(0.1)
+    arduino_serial.close()
     camera.stop()
-    GPIO.cleanup()
     print("Done!")
     # Print final statistics
     total_time = time.time() - start_time
