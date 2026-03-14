@@ -26,6 +26,13 @@ src/
 
 ## C++ Coding Style (Arduino)
 
+### Comment Style
+- **Use block comments**: All comments should use `/* */` style, not `//` style
+- **Single-line comments**: `/* comment */`
+- **Multi-line comments**: Use multi-line block comments when needed
+- **Inline comments**: Trailing block comments allowed: `code; /* explanation */`
+- **Rationale**: Maintains consistency with Doxygen documentation style
+
 ### Function Naming Convention
 - **Public functions** (declared in `.h` files): Start with **Capital letter**
 - **Static/private functions** (internal to `.cpp` files): Start with **lowercase letter**

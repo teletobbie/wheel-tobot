@@ -25,7 +25,7 @@
  */
 void initSerial()
 {
-  // Initialize UART at 115200 baud
+  /* Initialize UART at 115200 baud */
   Uart_Init(UART_BAUD_SELECT(115200, F_CPU));
 }
 
@@ -41,32 +41,32 @@ void initSerial()
 void processLineError(int16_t error)
 {
   static int16_t previous_error = 0;
-  // TODO: add Stall detection using a MPU-6050
+  /* TODO: add Stall detection using a MPU-6050 */
 
-  // Proportional control constant - for smoother wheel response
+  /* Proportional control constant - for smoother wheel response */
   const float Kp = 0.7f;
 
-  // derivative control constant - helps reduce overshoot
+  /* derivative control constant - helps reduce overshoot */
   const float Kd = 0.5f;
 
   int16_t error_derivative = error - previous_error;
 
-  // Calculate proportional adjustment (-127 to +127 range)
+  /* Calculate proportional adjustment (-127 to +127 range) */
   float adjustment = (Kp * error) + (Kd * error_derivative);
 
-  // Clamp adjustment to prevent excessive speed difference
+  /* Clamp adjustment to prevent excessive speed difference */
   if (adjustment > 100.0f)
     adjustment = 100.0f;
   if (adjustment < -100.0f)
     adjustment = -100.0f;
 
-  // Apply differential drive: subtract from left, add to right
-  // Positive error (line right) → reduce left speed, increase right speed → turn right
-  // Negative error (line left) → increase left speed, reduce right speed → turn left
+  /* Apply differential drive: subtract from left, add to right
+   * Positive error (line right) → reduce left speed, increase right speed → turn right
+   * Negative error (line left) → increase left speed, reduce right speed → turn left */
   int16_t left_speed = MOTOR_SPEED - (int16_t)adjustment;
   int16_t right_speed = MOTOR_SPEED + (int16_t)adjustment;
 
-  // Clamp motor speeds to valid range
+  /* Clamp motor speeds to valid range */
   if (left_speed > 255)
     left_speed = 255;
   if (left_speed < MIN_MOTOR_SPEED)
@@ -97,10 +97,10 @@ int main()
   SetupMotors();
   initSerial();
 
-  // Blink LED to show Arduino is ready
+  /* Blink LED to show Arduino is ready */
   TestArduino();
 
-  // Serial packet state machine
+  /* Serial packet state machine */
   enum PacketState
   {
     WAIT_SYNC,
@@ -117,14 +117,14 @@ int main()
   while (1)
   {
 
-    // Check if data available
+    /* Check if data available */
     uint16_t received = Uart_Getc();
 
     if (!(received & UART_NO_DATA))
     {
       uint8_t data = (uint8_t)received;
 
-      // State machine for packet parsing
+      /* State machine for packet parsing */
       switch (state)
       {
       case WAIT_SYNC:
@@ -147,28 +147,28 @@ int main()
       case READ_CHECKSUM:
         checksum = data;
 
-        // Verify checksum
+        /* Verify checksum */
         uint8_t calculated = (0xFF + error_high + error_low) & 0xFF;
         if (checksum == calculated)
         {
-          // Reconstruct signed 16-bit error value
+          /* Reconstruct signed 16-bit error value */
           int16_t error = (int16_t)((error_high << 8) | error_low);
 
-          // Process the error with proportional control
+          /* Process the error with proportional control */
           processLineError(error);
 
-          // Reset no-data counter
+          /* Reset no-data counter */
           no_data_counter = 0;
         }
 
-        // Reset state machine
+        /* Reset state machine */
         state = WAIT_SYNC;
         break;
       }
     }
     else
     {
-      // No data received for ~2000ms means Pi stopped sending - stop motors for safety
+      /* No data received for ~2000ms means Pi stopped sending - stop motors for safety */
       no_data_counter++;
       if (no_data_counter > 2000)
       {
@@ -177,7 +177,7 @@ int main()
       }
     }
 
-    _delay_ms(1); // Small delay to prevent CPU overload
+    _delay_ms(1); /* Small delay to prevent CPU overload */
   }
 
   return 0;

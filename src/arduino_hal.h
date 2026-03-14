@@ -18,7 +18,7 @@
 
 enum Pin
 {
-  // Digital pins - using unique non-overlapping values
+  /* Digital pins - using unique non-overlapping values */
   PIN_0 = 0,
   PIN_1 = 1,
   PIN_2 = 2,

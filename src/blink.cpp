@@ -15,10 +15,10 @@
  */
 void TestArduino()
 {
-  // Configure pin 13 (built-in LED) as output
+  /* Configure pin 13 (built-in LED) as output */
   PinMode(PIN_13, true);
 
-  // Blink 5 times
+  /* Blink 5 times */
   for (int i = 0; i < 5; i++)
   {
     DigitalWrite(PIN_13, true); // LED ON
