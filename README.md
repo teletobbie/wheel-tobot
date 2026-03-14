@@ -185,8 +185,9 @@ src/
   motor_driver.h/cpp    - TB6612FNG motor driver interface
   arduino_hal.h/cpp     - Hardware abstraction layer (GPIO, PWM, UART)
   blink.h/cpp          - LED diagnostic functions
-build/                  - Compiled binaries (gitignored)
-toolchain/              - AVR toolchain (gitignored)
+setup-static-ip-nmcli.sh - Pi network setup script (NetworkManager)
+build/                   - Compiled binaries (gitignored)
+toolchain/               - AVR toolchain (gitignored)
 .github/
   copilot-instructions.md - Project coding standards and conventions
 ```
@@ -239,6 +240,23 @@ rpicam-jpeg -o test.jpg -t 2000 --width 800 --height 600
 - Ensure ribbon cable contacts face the right direction on BOTH ends
 - Try reconnecting while Pi is powered off
 - Verify `dtoverlay=imx219` is at the END of config.txt
+
+### Static IP Configuration (Recommended for Robot)
+
+For robots that reboot frequently, configure a static IP to avoid DHCP issues:
+
+```bash
+# Copy script from your PC to Pi
+scp setup-static-ip-nmcli.sh tobias@192.168.1.178:~/
+
+# SSH into Pi and run
+chmod +x setup-static-ip-nmcli.sh
+./setup-static-ip-nmcli.sh
+```
+
+This ensures the Pi always uses `192.168.1.178` and connects faster on boot without DHCP negotiation delays.
+
+**Note:** Also configure a static DHCP reservation in your router (MAC → 192.168.1.178) as a backup to prevent IP conflicts.
 
 ### Software Installation
 ```bash
