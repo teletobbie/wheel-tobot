@@ -15,8 +15,8 @@
 #include <stdlib.h>
 #include <util/delay.h>
 
-#define MOTOR_SPEED 120
-#define MIN_MOTOR_SPEED 80
+#define MOTOR_SPEED 140
+#define MIN_MOTOR_SPEED 100
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
@@ -31,7 +31,7 @@ void initSerial()
 
 /**
  * @brief Process received line following error value with proportional control
- * @param error Line position error in pixels (-320 to +320)
+ * @param error Line position error in pixels (-150 to +150, limited on Pi side)
  *              - Negative: line is left, turn left
  *              - Positive: line is right, turn right
  *              - Zero: line centered, go straight
@@ -40,14 +40,19 @@ void initSerial()
  */
 void processLineError(int16_t error)
 {
-
+  static int16_t previous_error = 0;
   // TODO: add Stall detection using a MPU-6050
 
-  // Proportional gain - tune this value (0.2 = gentle, 0.5 = moderate, 0.8 = aggressive)
-  const float Kp = 0.5f;
+  // Proportional control constant - for smoother wheel response
+  const float Kp = 0.7f;
+
+  // derivative control constant - helps reduce overshoot
+  const float Kd = 0.5f;
+
+  int16_t error_derivative = error - previous_error;
 
   // Calculate proportional adjustment (-127 to +127 range)
-  float adjustment = Kp * error;
+  float adjustment = (Kp * error) + (Kd * error_derivative);
 
   // Clamp adjustment to prevent excessive speed difference
   if (adjustment > 100.0f)
@@ -71,7 +76,6 @@ void processLineError(int16_t error)
   if (right_speed < MIN_MOTOR_SPEED)
     right_speed = MIN_MOTOR_SPEED;
 
-  // Special case: if error is very small, go straight
   if (error >= -5 && error <= 5)
   {
     left_speed = MOTOR_SPEED;
@@ -80,6 +84,9 @@ void processLineError(int16_t error)
 
   MotorA_Drive(left_speed);
   MotorB_Drive(right_speed);
+
+  /* Update previous error for derivative calculation */
+  previous_error = error;
 }
 
 /**
@@ -92,8 +99,6 @@ int main()
 
   // Blink LED to show Arduino is ready
   TestArduino();
-
-  Uart_Puts("Arduino Ready - Waiting for error values\r\n");
 
   // Serial packet state machine
   enum PacketState
@@ -111,6 +116,7 @@ int main()
 
   while (1)
   {
+
     // Check if data available
     uint16_t received = Uart_Getc();
 
@@ -150,6 +156,9 @@ int main()
 
           // Process the error with proportional control
           processLineError(error);
+
+          // Reset no-data counter
+          no_data_counter = 0;
         }
 
         // Reset state machine
@@ -159,12 +168,12 @@ int main()
     }
     else
     {
-      // No data received for 1000ms+ means Pi stopped sending - stop motors for safety
+      // No data received for ~2000ms means Pi stopped sending - stop motors for safety
       no_data_counter++;
-      if (no_data_counter > 1000) // ~1000ms without data
+      if (no_data_counter > 2000)
       {
         StopAllMotors();
-        no_data_counter = 1000;
+        no_data_counter = 0;
       }
     }
 
