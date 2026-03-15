@@ -27,3 +27,23 @@ void TestArduino()
     _delay_ms(200);
   }
 }
+
+/**
+ * @brief Blink built-in LED rapidly to indicate a warning
+ *
+ * Useful for signaling errors or critical conditions.
+ */
+void BlinkWarning()
+{
+  /* Configure pin 13 (built-in LED) as output */
+  PinMode(PIN_13, true);
+
+  /* Blink rapidly to indicate warning */
+  for (int i = 0; i < 10; i++)
+  {
+    DigitalWrite(PIN_13, true); // LED ON
+    _delay_ms(100);
+    DigitalWrite(PIN_13, false); // LED OFF
+    _delay_ms(100);
+  }
+}

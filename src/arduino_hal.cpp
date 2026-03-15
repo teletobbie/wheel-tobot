@@ -8,6 +8,9 @@
 
 #include "arduino_hal.h"
 
+/* Timer overflow counter for micros() function */
+volatile uint32_t timer1_overflow_count = 0;
+
 void PinMode(Pin pin, bool output)
 {
   uint8_t bit;
@@ -243,4 +246,62 @@ void Uart_Puts(const char *str)
   {
     Uart_Putc(*str++);
   }
+}
+
+/**
+ * @brief Initialize Timer1 for microsecond timing
+ *
+ * Configures Timer1 in normal mode with prescaler 8.
+ * At 16MHz, each timer tick = 0.5 microseconds.
+ * Enables overflow interrupt to track time beyond 16-bit limit.
+ */
+void InitTimer()
+{
+  /* Timer1: Normal mode, prescaler = 8 (2MHz = 0.5us per tick) */
+  TCCR1A = 0;
+  TCCR1B = (1 << CS11); /* Prescaler 8 */
+
+  /* Enable Timer1 overflow interrupt */
+  TIMSK1 = (1 << TOIE1);
+
+  /* Enable global interrupts */
+  sei();
+}
+
+/**
+ * @brief Get microseconds since timer initialization
+ * @return Number of microseconds elapsed
+ * @note Timer1 with prescaler 8 at 16MHz: each tick = 0.5us
+ *       Overflow occurs every 65536 ticks = 32.768ms
+ */
+uint32_t Micros()
+{
+  uint32_t m;
+  uint16_t t;
+
+  /* Disable interrupts to read atomically */
+  uint8_t oldSREG = SREG;
+  cli();
+
+  m = timer1_overflow_count;
+  t = TCNT1;
+
+  /* Check if overflow occurred during read */
+  if ((TIFR1 & (1 << TOV1)) && (t < 0x7FFF))
+    m++;
+
+  SREG = oldSREG;
+
+  /* Convert to microseconds: (overflows * 65536 + ticks) * 0.5 */
+  return ((m << 16) + t) >> 1;
+}
+
+/**
+ * @brief Timer1 overflow interrupt handler
+ *
+ * Increments overflow counter for micros() function.
+ */
+ISR(TIMER1_OVF_vect)
+{
+  timer1_overflow_count++;
 }

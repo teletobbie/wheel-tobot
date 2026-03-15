@@ -10,6 +10,7 @@
 #ifndef ARDUINO_HAL_H
 #define ARDUINO_HAL_H
 
+#include <avr/interrupt.h>
 #include <avr/io.h>
 #include <stdint.h>
 
@@ -63,5 +64,8 @@ void Uart_Init(uint16_t ubrr);
 uint16_t Uart_Getc();
 void Uart_Putc(uint8_t data);
 void Uart_Puts(const char *str);
+
+void InitTimer();
+uint32_t Micros();
 
 #endif // ARDUINO_HAL_H

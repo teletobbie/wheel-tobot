@@ -25,6 +25,7 @@
         "src\\arduino_hal.cpp",
         "src\\motor_driver.cpp",
         "src\\blink.cpp",
+        "src\\ultra_sonic.cpp",
         "-o",
         "build\\controller.elf"
       ],

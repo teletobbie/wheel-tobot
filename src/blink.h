@@ -7,5 +7,6 @@
 #define BLINK_H
 
 void TestArduino();
+void BlinkWarning();
 
 #endif // BLINK_H

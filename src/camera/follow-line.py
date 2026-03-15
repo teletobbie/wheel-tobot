@@ -16,7 +16,7 @@ SEARCH_REDUCTION = 0.3  # Reduce error by 70% when searching for lost line
 
 # Serial communication setup
 SERIAL_PORT = '/dev/ttyS0'  # Raspberry Pi hardware UART (TX=GPIO14, RX=GPIO15)
-BAUD_RATE = 115200
+BAUD_RATE = 57600
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Line following robot with optional web streaming')
 parser.add_argument('--stream', action='store_true', help='Enable web streaming on port 5000')

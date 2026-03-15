@@ -12,11 +12,13 @@
 #include "arduino_hal.h"
 #include "blink.h"
 #include "motor_driver.h"
+#include "ultra_sonic.h"
 #include <stdlib.h>
 #include <util/delay.h>
 
-#define MOTOR_SPEED 140
-#define MIN_MOTOR_SPEED 100
+#define MOTOR_SPEED 120
+#define MIN_MOTOR_SPEED 80
+#define COLLISION_THRESHOLD_CM 25.0f
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
@@ -25,8 +27,32 @@
  */
 void initSerial()
 {
-  /* Initialize UART at 115200 baud */
-  Uart_Init(UART_BAUD_SELECT(115200, F_CPU));
+  /* Initialize UART at 57600 baud */
+  Uart_Init(UART_BAUD_SELECT(57600, F_CPU));
+}
+
+/**
+ * @brief Check for obstacles and stop motors if too close
+ * @param threshold_cm Distance threshold in centimeters
+ * @return true if obstacle detected (should skip further processing), false otherwise
+ *
+ * Measures distance with ultrasonic sensor. If obstacle is closer than threshold,
+ * stops all motors and blinks warning LED.
+ */
+static bool checkObstacle(float threshold_cm)
+{
+  float distanceFront = MeasureDistance();
+  bool tooCloseToObstacle = distanceFront > 0 && distanceFront < threshold_cm;
+
+  if (tooCloseToObstacle)
+  {
+    /* Safety override: stop immediately regardless of UART commands */
+    StopAllMotors();
+    BlinkWarning();
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -96,6 +122,8 @@ int main()
 {
   SetupMotors();
   initSerial();
+  InitTimer();
+  SetupUltraSonic();
 
   /* Blink LED to show Arduino is ready */
   TestArduino();
@@ -116,12 +144,19 @@ int main()
 
   while (1)
   {
+    /* Check obstacle sensor - independent of UART */
+    if (checkObstacle(COLLISION_THRESHOLD_CM))
+    {
+      _delay_ms(1);
+      continue; /* Skip UART processing while obstacle detected */
+    }
 
-    /* Check if data available */
+    /* Check if UART data available */
     uint16_t received = Uart_Getc();
 
     if (!(received & UART_NO_DATA))
     {
+      /* Data received - process it */
       uint8_t data = (uint8_t)received;
 
       /* State machine for packet parsing */
@@ -157,7 +192,7 @@ int main()
           /* Process the error with proportional control */
           processLineError(error);
 
-          /* Reset no-data counter */
+          /* Reset no-data counter on valid packet */
           no_data_counter = 0;
         }
 
@@ -168,12 +203,13 @@ int main()
     }
     else
     {
-      /* No data received for ~2000ms means Pi stopped sending - stop motors for safety */
+      /* No UART data received - increment timeout counter */
       no_data_counter++;
       if (no_data_counter > 2000)
       {
+        /* No data for ~2000ms - Pi stopped sending, stop motors for safety */
         StopAllMotors();
-        no_data_counter = 0;
+        no_data_counter = 0; /* Reset to avoid overflow */
       }
     }
 
