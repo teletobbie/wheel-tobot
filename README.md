@@ -265,10 +265,11 @@ sudo apt update && sudo apt upgrade -y
 
 # Install Python dependencies (recommended method for Raspberry Pi)
 sudo apt install -y python3-pip python3-opencv python3-numpy
-sudo apt install -y python3-picamera2 python3-serial
+sudo apt install -y python3-picamera2 python3-serial python3-flask
 
-# Alternative: Install from requirements.txt
-# pip3 install -r src/camera/requirements.txt
+# Alternative: Install from requirements.txt (if system packages not available)
+# cd ~/camera
+# pip3 install -r requirements.txt
 
 # Enable camera and UART
 sudo raspi-config
@@ -281,11 +282,15 @@ sudo raspi-config
 
 ### Running Vision System
 ```bash
-# Copy Python script to Pi
-scp src/camera/follow-line.py pi@raspberrypi.local:~/
+# Copy Python scripts to Pi
+scp -r src/camera tobias@192.168.1.178:~/
 
-# Run on Pi
-python3 ~/follow-line.py
+# Run on Pi (headless mode)
+cd ~/camera
+python3 follow-line.py
+
+# Run with web streaming (access at http://pi-tobias.local:5000)
+python3 follow-line.py --stream
 
 # Press Ctrl+C to quit
 ```

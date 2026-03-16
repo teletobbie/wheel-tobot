@@ -4,8 +4,6 @@ import cv2
 import numpy as np
 import serial
 import argparse
-from flask import Flask, Response
-import threading
 import signal
 import sys
 
@@ -22,11 +20,10 @@ parser = argparse.ArgumentParser(description='Line following robot with optional
 parser.add_argument('--stream', action='store_true', help='Enable web streaming on port 5000')
 args = parser.parse_args()
 
-# Flask app for streaming (only if enabled)
+# Import streaming module if enabled
 if args.stream:
-    app = Flask(__name__)
-    stream_frame = None
-    stream_lock = threading.Lock()
+    import streaming_server    
+
 # Initialize serial connection to Arduino
 try:
     arduino_serial = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=0.01)
@@ -102,55 +99,7 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 if args.stream:
-    @app.route('/')
-    def index():
-        """Video streaming home page"""
-        return '''
-        <html>
-        <head>
-            <title>Wheel-Tobot Camera Feed</title>
-            <style>
-                body { background: #000; color: #0f0; font-family: monospace; text-align: center; }
-                img { max-width: 100%; height: auto; border: 2px solid #0f0; }
-                h1 { color: #0f0; }
-            </style>
-        </head>
-        <body>
-            <h1>🤖 Wheel-Tobot Live Camera Feed</h1>
-            <img src="/video_feed" />
-            <p>Streaming from Raspberry Pi</p>
-        </body>
-        </html>
-        '''
-    
-    @app.route('/video_feed')
-    def video_feed():
-        """Video streaming route - returns MJPEG stream"""
-        def generate():
-            global stream_frame
-            while True:
-                with stream_lock:
-                    if stream_frame is None:
-                        continue
-                    # Encode frame as JPEG
-                    ret, jpeg = cv2.imencode('.jpg', stream_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-                    if not ret:
-                        continue
-                    frame_bytes = jpeg.tobytes()
-                
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-                time.sleep(0.033)  # ~30 FPS max for stream
-        
-        return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
-    
-    # Start Flask in background thread
-    def run_flask():
-        app.run(host='0.0.0.0', port=5000, threaded=True, debug=False)
-    
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    print("Web streaming enabled at http://pi-tobias.local:5000")
+    streaming_server.start_streaming()
 
 while running:
         # Capture frame
@@ -229,8 +178,7 @@ while running:
         
         # Update stream frame if streaming is enabled
         if args.stream:
-            with stream_lock:
-                stream_frame = debug_img.copy()
+            streaming_server.update_frame(debug_img)
         
         # Print status every 2 seconds
         current_time = time.time()
@@ -257,4 +205,3 @@ print("Done!")
 total_time = time.time() - start_time
 avg_fps = frame_count / total_time if total_time > 0 else 0
 print(f"Session complete: {frame_count} frames in {total_time:.1f}s (avg {avg_fps:.1f} FPS)")
-    
