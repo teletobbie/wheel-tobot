@@ -16,8 +16,8 @@
 #include <stdlib.h>
 #include <util/delay.h>
 
-#define MOTOR_SPEED 120
-#define MIN_MOTOR_SPEED 80
+#define MOTOR_SPEED 60
+#define MIN_MOTOR_SPEED 50
 #define COLLISION_THRESHOLD_CM 25.0f
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -70,10 +70,10 @@ void processLineError(int16_t error)
   /* TODO: add Stall detection using a MPU-6050 */
 
   /* Proportional control constant - for smoother wheel response */
-  const float Kp = 0.7f;
+  const float Kp = 0.5f;
 
   /* derivative control constant - helps reduce overshoot */
-  const float Kd = 0.5f;
+  const float Kd = 0.2f;
 
   int16_t error_derivative = error - previous_error;
 
