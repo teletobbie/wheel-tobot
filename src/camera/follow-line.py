@@ -10,7 +10,9 @@ import sys
 # Configuration
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 360
-SEARCH_REDUCTION = 0.3  # Reduce error by 70% when searching for lost line
+SEARCH_TIMEOUT_FRAMES = 40  # Stop after losing line for 40 frames (~1.5 seconds)
+SEARCH_ERROR_THRESHOLD = 20  # Only search if last error was significant
+REVERSE_FRAMES = 15  # Try to reverse/turn back for first 15 frames
 
 # Serial communication setup
 SERIAL_PORT = '/dev/ttyS0'  # Raspberry Pi hardware UART (TX=GPIO14, RX=GPIO15)
@@ -107,8 +109,8 @@ while running:
         roi = image[200:250, 0:639]
         Blackline = cv2.inRange(roi, (0, 0, 0), (50, 50, 50))
         kernel = np.ones((3, 3), np.uint8)
-        Blackline = cv2.erode(Blackline, kernel, iterations=5)
-        Blackline = cv2.dilate(Blackline, kernel, iterations=9)	
+        Blackline = cv2.erode(Blackline, kernel, iterations=3)
+        Blackline = cv2.dilate(Blackline, kernel, iterations=5)	
         contours, hierarchy = cv2.findContours(Blackline.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)	
         
         error = 0  # Default: No error (centered)
@@ -127,6 +129,13 @@ while running:
             
             # Calculate proportional error (pixels from center)
             error = int(line_center - center_x)
+            
+            # Clamp error to reasonable range to prevent extreme corrections
+            if error > 200:
+                error = 200
+            elif error < -200:
+                error = -200
+                
             last_error = error  # Remember for line search
             
             # Generate status text based on error magnitude
@@ -144,19 +153,36 @@ while running:
                 # Never found line - stop and wait
                 error = 0
                 command_text = "WAITING"
-            else:
-                # Line lost for several frames - enter search mode
-                if abs(last_error) < 20:
-                    # Was centered when lost - stop completely
-                    error = 0
-                    command_text = "STOPPED"
+            elif frames_without_line > SEARCH_TIMEOUT_FRAMES:
+                # Lost line for too long - stop completely
+                error = 0
+                command_text = "STOPPED"
+            elif abs(last_error) < SEARCH_ERROR_THRESHOLD:
+                # Was nearly centered when lost - stop and let it settle
+                error = 0
+                command_text = "STOPPED"
+            elif frames_without_line <= REVERSE_FRAMES:
+                # Just lost line - turn back in opposite direction
+                # Use stronger correction for larger errors
+                if abs(last_error) > 100:
+                    reverse_strength = 0.4  # 40% for large errors
+                elif abs(last_error) > 50:
+                    reverse_strength = 0.3  # 30% for medium errors
                 else:
-                    # Search slowly in last known direction
-                    error = int(last_error * SEARCH_REDUCTION)
-                    if last_error < 0:
-                        command_text = "SEARCH_LEFT"
-                    else:
-                        command_text = "SEARCH_RIGHT"
+                    reverse_strength = 0.2  # 20% for small errors
+                
+                error = -int(last_error * reverse_strength)
+                if error > 0:
+                    command_text = "REVERSE_RIGHT"
+                else:
+                    command_text = "REVERSE_LEFT"
+            else:
+                # Still no line after reversing - gentle sweep search
+                error = int(last_error * 0.15)
+                if last_error < 0:
+                    command_text = "SEARCH_LEFT"
+                else:
+                    command_text = "SEARCH_RIGHT"
         
         # Send proportional error to Arduino
         send_error_value(error)

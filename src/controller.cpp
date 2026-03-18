@@ -16,8 +16,8 @@
 #include <stdlib.h>
 #include <util/delay.h>
 
-#define MOTOR_SPEED 60
-#define MIN_MOTOR_SPEED 50
+#define MOTOR_SPEED 55
+#define MIN_MOTOR_SPEED 45
 #define COLLISION_THRESHOLD_CM 25.0f
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -56,7 +56,7 @@ static bool checkObstacle(float threshold_cm)
 }
 
 /**
- * @brief Process received line following error value with proportional control
+ * @brief Process received line following error value with PID control
  * @param error Line position error in pixels (-150 to +150, limited on Pi side)
  *              - Negative: line is left, turn left
  *              - Positive: line is right, turn right
@@ -67,28 +67,40 @@ static bool checkObstacle(float threshold_cm)
 void processLineError(int16_t error)
 {
   static int16_t previous_error = 0;
-  /* TODO: add Stall detection using a MPU-6050 */
+  static int16_t integral = 0;
 
   /* Proportional control constant - for smoother wheel response */
-  const float Kp = 0.5f;
+  float Kp = 0.1f;
 
-  /* derivative control constant - helps reduce overshoot */
-  const float Kd = 0.2f;
+  /* Integral control constant - helps reduce steady-state error */
+  const float Ki = 0.0f;
+
+  /* Derivative control constant - helps reduce overshoot */
+  const float Kd = 0.0f;
+
+  /* Update integral term */
+  integral += error;
+  /* Clamp integral to prevent windup */
+  if (integral > 500)
+    integral = 500;
+  if (integral < -500)
+    integral = -500;
 
   int16_t error_derivative = error - previous_error;
 
-  /* Calculate proportional adjustment (-127 to +127 range) */
-  float adjustment = (Kp * error) + (Kd * error_derivative);
+  /* Calculate proportional adjustment */
+  float adjustment = (Kp * error) + (Ki * integral) + (Kd * error_derivative);
 
   /* Clamp adjustment to prevent excessive speed difference */
-  if (adjustment > 100.0f)
-    adjustment = 100.0f;
-  if (adjustment < -100.0f)
-    adjustment = -100.0f;
+  if (adjustment > 80.0f)
+    adjustment = 80.0f;
+  if (adjustment < -80.0f)
+    adjustment = -80.0f;
 
   /* Apply differential drive: subtract from left, add to right
    * Positive error (line right) → reduce left speed, increase right speed → turn right
-   * Negative error (line left) → increase left speed, reduce right speed → turn left */
+   * Negative error (line left) → increase left speed, reduce right speed → turn left
+   * NOTE: If robot turns opposite direction, swap MotorA/MotorB calls below */
   int16_t left_speed = MOTOR_SPEED - (int16_t)adjustment;
   int16_t right_speed = MOTOR_SPEED + (int16_t)adjustment;
 
@@ -102,14 +114,8 @@ void processLineError(int16_t error)
   if (right_speed < MIN_MOTOR_SPEED)
     right_speed = MIN_MOTOR_SPEED;
 
-  if (error >= -5 && error <= 5)
-  {
-    left_speed = MOTOR_SPEED;
-    right_speed = MOTOR_SPEED;
-  }
-
-  MotorA_Drive(left_speed);
-  MotorB_Drive(right_speed);
+  MotorB_Drive(left_speed);
+  MotorA_Drive(right_speed);
 
   /* Update previous error for derivative calculation */
   previous_error = error;
