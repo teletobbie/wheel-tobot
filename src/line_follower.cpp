@@ -33,10 +33,10 @@ void ProcessLineCommand(int16_t error, Direction direction)
 {
   static int16_t previous_error = 0;
   static int16_t integral = 0;
-  int16_t baseSpeed;
-  float Kp;
-  const float Ki = 0.0f; /* Integral control constant - helps reduce steady-state error */
-  const float Kd = 0.0f; /* Derivative control constant - helps reduce overshoot */
+  int16_t baseSpeed = MOTOR_SPEED; /* Base speed for motors, adjusted by state */
+  float Kp = 0.0f;                 /* Proportional control constant - main driver of correction */
+  const float Ki = 0.0f;           /* Integral control constant - helps reduce steady-state error */
+  const float Kd = 0.0f;           /* Derivative control constant - helps reduce overshoot */
 
   /* Handle WAITING state - stop completely */
   if (direction == DIR_WAITING)
