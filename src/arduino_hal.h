@@ -61,8 +61,9 @@ void InitPWM();
 void InitADC();
 
 void Uart_Init(uint16_t ubrr);
+bool Uart_Available();
 uint16_t Uart_Getc();
-void Uart_Putc(uint8_t data);
+uint8_t Uart_ReadBytes(uint8_t *buffer, uint8_t maxLength);uint8_t Uart_ReadBytesTimeout(uint8_t* buffer, uint8_t maxLength, uint16_t timeout_us);void Uart_Putc(uint8_t data);
 void Uart_Puts(const char *str);
 
 void InitTimer();

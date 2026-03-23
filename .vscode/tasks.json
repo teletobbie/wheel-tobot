@@ -26,6 +26,8 @@
         "src\\motor_driver.cpp",
         "src\\blink.cpp",
         "src\\ultra_sonic.cpp",
+        "src\\serial_logger.cpp",
+        "src\\line_follower.cpp",
         "-o",
         "build\\controller.elf"
       ],
@@ -35,7 +37,9 @@
       "problemMatcher": [
         "$gcc"
       ],
-      "dependsOn": ["Create Build Folder"],
+      "dependsOn": [
+        "Create Build Folder"
+      ],
       "detail": "Build modular Arduino project for Uno (ATmega328P)"
     },
     {
@@ -103,7 +107,9 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": [],
-      "dependsOn": ["Build Complete Arduino Uno Project"],
+      "dependsOn": [
+        "Build Complete Arduino Uno Project"
+      ],
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -132,7 +138,9 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": [],
-      "dependsOn": ["Build Complete Arduino Uno Project"],
+      "dependsOn": [
+        "Build Complete Arduino Uno Project"
+      ],
       "group": "build",
       "presentation": {
         "reveal": "always",

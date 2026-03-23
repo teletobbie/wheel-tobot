@@ -208,6 +208,15 @@ void Uart_Init(uint16_t ubrr)
 }
 
 /**
+ * @brief Check if UART data is available
+ * @return true if data is available to read, false otherwise
+ */
+bool Uart_Available()
+{
+  return (UCSR0A & (1 << RXC0)) != 0;
+}
+
+/**
  * @brief Receive a byte from UART (non-blocking)
  * @return Received byte or UART_NO_DATA if no data available
  * @note Check return value with: if (!(received & UART_NO_DATA))
@@ -220,6 +229,61 @@ uint16_t Uart_Getc()
     return UDR0;
   }
   return UART_NO_DATA;
+}
+
+/**
+ * @brief Read multiple bytes from UART (non-blocking)
+ * @param buffer Pointer to buffer to store received data
+ * @param maxLength Maximum number of bytes to read
+ * @return Number of bytes actually read (0 if no data available)
+ * @note Reads all available bytes up to maxLength, does not wait for more data
+ */
+uint8_t Uart_ReadBytes(uint8_t *buffer, uint8_t maxLength)
+{
+  uint8_t count = 0;
+
+  /* Read all available bytes up to maxLength */
+  while (count < maxLength && (UCSR0A & (1 << RXC0)))
+  {
+    buffer[count++] = UDR0;
+  }
+
+  return count;
+}
+
+/**
+ * @brief Read multiple bytes from UART with timeout (blocking)
+ * @param buffer Pointer to buffer to store received data
+ * @param maxLength Maximum number of bytes to read
+ * @param timeout_us Timeout in microseconds to wait for all bytes
+ * @return Number of bytes actually read (may be less than maxLength if timeout)
+ * @note Waits up to timeout_us for bytes to arrive. Use for packet reception.
+ */
+uint8_t Uart_ReadBytesTimeout(uint8_t *buffer, uint8_t maxLength, uint16_t timeout_us)
+{
+  uint8_t count = 0;
+  uint32_t start_time = Micros();
+
+  /* Read bytes until we get maxLength or timeout */
+  while (count < maxLength)
+  {
+    /* Check if data is available */
+    if (UCSR0A & (1 << RXC0))
+    {
+      buffer[count++] = UDR0;
+      start_time = Micros(); /* Reset timeout on each successful read */
+    }
+    else
+    {
+      /* Check if timeout exceeded */
+      if ((Micros() - start_time) > timeout_us)
+      {
+        break; /* Timeout - return what we have */
+      }
+    }
+  }
+
+  return count;
 }
 
 /**

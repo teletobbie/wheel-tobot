@@ -2,8 +2,10 @@
  * @file controller.cpp
  * @brief Main controller for wheel-tobot autonomous robot
  *
- * Receives commands from Raspberry Pi via UART serial communication
- * Commands: Line following error values or motor control commands
+ * Receives commands from Raspberry Pi via UART serial communication.
+ * Message format (4 bytes): [0xFF][ERROR_HIGH][ERROR_LOW][DIRECTION]
+ * - ERROR: 16-bit signed line following error (-32768 to +32767)
+ * - DIRECTION: Command byte (0=forward, 1=backward, 2=left, 3=right, etc.)
  *
  * @author wheel-tobot project
  * @date 2026
@@ -11,25 +13,15 @@
 
 #include "arduino_hal.h"
 #include "blink.h"
+#include "line_follower.h"
 #include "motor_driver.h"
+#include "serial_logger.h"
 #include "ultra_sonic.h"
 #include <stdlib.h>
 #include <util/delay.h>
 
-#define MOTOR_SPEED 55
-#define MIN_MOTOR_SPEED 45
-#define COLLISION_THRESHOLD_CM 25.0f
-
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-
-/**
- * @brief Initialize UART serial communication
- */
-void initSerial()
-{
-  /* Initialize UART at 57600 baud */
-  Uart_Init(UART_BAUD_SELECT(57600, F_CPU));
-}
+#define COLLISION_THRESHOLD_CM 20.0f
+#define BAUD_RATE 57600
 
 /**
  * @brief Check for obstacles and stop motors if too close
@@ -56,96 +48,20 @@ static bool checkObstacle(float threshold_cm)
 }
 
 /**
- * @brief Process received line following error value with PID control
- * @param error Line position error in pixels (-150 to +150, limited on Pi side)
- *              - Negative: line is left, turn left
- *              - Positive: line is right, turn right
- *              - Zero: line centered, go straight
- *
- * Uses differential drive: adjusts left/right motor speeds proportionally to error
- */
-void processLineError(int16_t error)
-{
-  static int16_t previous_error = 0;
-  static int16_t integral = 0;
-
-  /* Proportional control constant - for smoother wheel response */
-  float Kp = 0.1f;
-
-  /* Integral control constant - helps reduce steady-state error */
-  const float Ki = 0.0f;
-
-  /* Derivative control constant - helps reduce overshoot */
-  const float Kd = 0.0f;
-
-  /* Update integral term */
-  integral += error;
-  /* Clamp integral to prevent windup */
-  if (integral > 500)
-    integral = 500;
-  if (integral < -500)
-    integral = -500;
-
-  int16_t error_derivative = error - previous_error;
-
-  /* Calculate proportional adjustment */
-  float adjustment = (Kp * error) + (Ki * integral) + (Kd * error_derivative);
-
-  /* Clamp adjustment to prevent excessive speed difference */
-  if (adjustment > 80.0f)
-    adjustment = 80.0f;
-  if (adjustment < -80.0f)
-    adjustment = -80.0f;
-
-  /* Apply differential drive: subtract from left, add to right
-   * Positive error (line right) → reduce left speed, increase right speed → turn right
-   * Negative error (line left) → increase left speed, reduce right speed → turn left
-   * NOTE: If robot turns opposite direction, swap MotorA/MotorB calls below */
-  int16_t left_speed = MOTOR_SPEED - (int16_t)adjustment;
-  int16_t right_speed = MOTOR_SPEED + (int16_t)adjustment;
-
-  /* Clamp motor speeds to valid range */
-  if (left_speed > 255)
-    left_speed = 255;
-  if (left_speed < MIN_MOTOR_SPEED)
-    left_speed = MIN_MOTOR_SPEED;
-  if (right_speed > 255)
-    right_speed = 255;
-  if (right_speed < MIN_MOTOR_SPEED)
-    right_speed = MIN_MOTOR_SPEED;
-
-  MotorB_Drive(left_speed);
-  MotorA_Drive(right_speed);
-
-  /* Update previous error for derivative calculation */
-  previous_error = error;
-}
-
-/**
  * @brief Main program entry point
  */
 int main()
 {
   SetupMotors();
-  initSerial();
+  Uart_Init(UART_BAUD_SELECT(BAUD_RATE, F_CPU));
   InitTimer();
   SetupUltraSonic();
 
   /* Blink LED to show Arduino is ready */
   TestArduino();
 
-  /* Serial packet state machine */
-  enum PacketState
-  {
-    WAIT_SYNC,
-    READ_HIGH,
-    READ_LOW,
-    READ_CHECKSUM
-  };
-  PacketState state = WAIT_SYNC;
-  uint8_t error_high = 0;
-  uint8_t error_low = 0;
-  uint8_t checksum = 0;
+  /* Message buffer for UART reception */
+  uint8_t buffer[4]; /* Fixed 4-byte message: [SYNC][ERROR_HIGH][ERROR_LOW][DIRECTION] */
   static uint16_t no_data_counter = 0;
 
   while (1)
@@ -158,62 +74,34 @@ int main()
     }
 
     /* Check if UART data available */
-    uint16_t received = Uart_Getc();
-
-    if (!(received & UART_NO_DATA))
+    if (Uart_Available())
     {
-      /* Data received - process it */
-      uint8_t data = (uint8_t)received;
+      /* Read 4-byte packet with 2ms timeout (4 bytes @ 57600 baud ≈ 700us) */
+      uint8_t bytesRead = Uart_ReadBytesTimeout(buffer, 4, 2000);
 
-      /* State machine for packet parsing */
-      switch (state)
+      /* Process complete packet */
+      if (bytesRead == 4 && buffer[0] == 0xFF)
       {
-      case WAIT_SYNC:
-        if (data == 0xFF)
-        {
-          state = READ_HIGH;
-        }
-        break;
+        /* Reconstruct signed 16-bit error value */
+        int16_t error = (int16_t)((buffer[1] << 8) | buffer[2]);
 
-      case READ_HIGH:
-        error_high = data;
-        state = READ_LOW;
-        break;
+        /* Get direction byte */
+        Direction direction = (Direction)buffer[3];
 
-      case READ_LOW:
-        error_low = data;
-        state = READ_CHECKSUM;
-        break;
+        /* Process line following command with state-aware control */
+        ProcessLineCommand(error, direction);
 
-      case READ_CHECKSUM:
-        checksum = data;
-
-        /* Verify checksum */
-        uint8_t calculated = (0xFF + error_high + error_low) & 0xFF;
-        if (checksum == calculated)
-        {
-          /* Reconstruct signed 16-bit error value */
-          int16_t error = (int16_t)((error_high << 8) | error_low);
-
-          /* Process the error with proportional control */
-          processLineError(error);
-
-          /* Reset no-data counter on valid packet */
-          no_data_counter = 0;
-        }
-
-        /* Reset state machine */
-        state = WAIT_SYNC;
-        break;
+        /* Reset no-data counter on valid packet */
+        no_data_counter = 0;
       }
     }
     else
     {
       /* No UART data received - increment timeout counter */
       no_data_counter++;
-      if (no_data_counter > 2000)
+      if (no_data_counter > 1000)
       {
-        /* No data for ~2000ms - Pi stopped sending, stop motors for safety */
+        /* No data for ~1000ms - Pi stopped sending, stop motors for safety */
         StopAllMotors();
         no_data_counter = 0; /* Reset to avoid overflow */
       }

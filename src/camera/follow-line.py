@@ -6,6 +6,7 @@ import serial
 import argparse
 import signal
 import sys
+from logger import ArduinoLogger
 
 # Configuration
 CAMERA_WIDTH = 640
@@ -17,6 +18,14 @@ REVERSE_FRAMES = 15  # Try to reverse/turn back for first 15 frames
 # Serial communication setup
 SERIAL_PORT = '/dev/ttyS0'  # Raspberry Pi hardware UART (TX=GPIO14, RX=GPIO15)
 BAUD_RATE = 57600
+
+# Direction codes for Arduino protocol
+DIR_FORWARD = 0       # Normal line following
+DIR_WAITING = 1       # Stopped, no line yet
+DIR_REVERSE_LEFT = 2  # Just lost line, turning back left
+DIR_REVERSE_RIGHT = 3 # Just lost line, turning back right
+DIR_SEARCH_LEFT = 4   # Gentle sweep searching left
+DIR_SEARCH_RIGHT = 5  # Gentle sweep searching right
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Line following robot with optional web streaming')
 parser.add_argument('--stream', action='store_true', help='Enable web streaming on port 5000')
@@ -33,36 +42,52 @@ try:
     # Flush any garbage data from initial connection
     arduino_serial.reset_input_buffer()
     arduino_serial.reset_output_buffer()
+    arduino_logger = ArduinoLogger(log_to_file=False)
     print(f"Serial connection established on {SERIAL_PORT} at {BAUD_RATE} baud")
 except Exception as e:
     print(f"Failed to open serial port: {e}")
     print("Make sure UART is enabled in raspi-config and Arduino is connected")
     sys.exit(1)
 
-def send_error_value(error):
-    """Send proportional error value to Arduino via UART
+def send_error_value(error, direction=DIR_FORWARD):
+    """Send proportional error value and direction to Arduino via UART
     
     Args:
         error: Line position error in pixels (-320 to +320)
                Negative = line on left, Positive = line on right
+        direction: Command byte (default: DIR_FORWARD)
+                   DIR_FORWARD (0) = Normal line following
+                   DIR_WAITING (1) = Stopped, no line yet
+                   DIR_REVERSE_LEFT (2) = Just lost line, turning back left
+                   DIR_REVERSE_RIGHT (3) = Just lost line, turning back right
+                   DIR_SEARCH_LEFT (4) = Gentle sweep searching left
+                   DIR_SEARCH_RIGHT (5) = Gentle sweep searching right
     
-    Protocol: [SYNC][ERROR_HIGH][ERROR_LOW][CHECKSUM]
+    Protocol: [SYNC][ERROR_HIGH][ERROR_LOW][DIRECTION]
     """
     
-    # Convert to signed 16-bit bytes
+    # Convert to signed 16-bit bytes by deviding into two 8-bit values
     error_signed = error if error >= 0 else (0x10000 + error)
     error_high = (error_signed >> 8) & 0xFF
     error_low = error_signed & 0xFF
     
-    # Simple checksum
-    checksum = (0xFF + error_high + error_low) & 0xFF
-    
-    # Send packet
-    packet = bytes([0xFF, error_high, error_low, checksum])
+    # Send packet with direction byte
+    packet = bytes([0xFF, error_high, error_low, direction])
     try:
         arduino_serial.write(packet)
     except Exception as e:
         print(f"Serial write error: {e}")
+
+def read_arduino_logs():
+    """Read and log any incoming data from Arduino"""
+    while arduino_serial.in_waiting > 0:
+        try:
+            line = arduino_serial.readline().decode('utf-8', errors='ignore').strip()
+            if line and line.startswith('LOG,'):
+                data = arduino_logger.parse_log_line(line)
+                arduino_logger.log_data(data)
+        except Exception as e:
+            pass  # Ignore read errors
 
 # Setup camera with picamera2
 camera = Picamera2()
@@ -82,7 +107,7 @@ time.sleep(1)
 arduino_serial.reset_input_buffer()
 time.sleep(0.5)
 
-send_error_value(0)  # Start with no error (motors will be controlled by Arduino)
+send_error_value(0, direction=DIR_WAITING)  # Start in WAITING state
 
 frame_count = 0
 start_time = time.time()
@@ -115,6 +140,7 @@ while running:
         
         error = 0  # Default: No error (centered)
         command_text = "CENTERED"
+        direction = DIR_FORWARD  # Default: FORWARD
         line_center = None
         
         if len(contours) > 0:
@@ -139,7 +165,8 @@ while running:
             last_error = error  # Remember for line search
             
             # Generate status text based on error magnitude
-            if abs(error) < 20:
+            direction = DIR_FORWARD  # FORWARD (normal line following)
+            if abs(error) < 30:
                 command_text = "CENTERED"
             elif error < 0:
                 command_text = "TURN_LEFT"
@@ -153,14 +180,7 @@ while running:
                 # Never found line - stop and wait
                 error = 0
                 command_text = "WAITING"
-            elif frames_without_line > SEARCH_TIMEOUT_FRAMES:
-                # Lost line for too long - stop completely
-                error = 0
-                command_text = "STOPPED"
-            elif abs(last_error) < SEARCH_ERROR_THRESHOLD:
-                # Was nearly centered when lost - stop and let it settle
-                error = 0
-                command_text = "STOPPED"
+                direction = DIR_WAITING  # WAITING
             elif frames_without_line <= REVERSE_FRAMES:
                 # Just lost line - turn back in opposite direction
                 # Use stronger correction for larger errors
@@ -174,18 +194,22 @@ while running:
                 error = -int(last_error * reverse_strength)
                 if error > 0:
                     command_text = "REVERSE_RIGHT"
+                    direction = DIR_REVERSE_RIGHT  # REVERSE_RIGHT
                 else:
                     command_text = "REVERSE_LEFT"
+                    direction = DIR_REVERSE_LEFT  # REVERSE_LEFT
             else:
                 # Still no line after reversing - gentle sweep search
                 error = int(last_error * 0.15)
                 if last_error < 0:
                     command_text = "SEARCH_LEFT"
+                    direction = DIR_SEARCH_LEFT  # SEARCH_LEFT
                 else:
                     command_text = "SEARCH_RIGHT"
+                    direction = DIR_SEARCH_RIGHT  # SEARCH_RIGHT
         
-        # Send proportional error to Arduino
-        send_error_value(error)
+        # Send proportional error and direction to Arduino
+        send_error_value(error, direction)
         
         # Update frame counter
         frame_count += 1
@@ -215,16 +239,20 @@ while running:
                 status_msg += f" | LOST: {frames_without_line}"
             print(status_msg)
             last_status_time = current_time
+        
+        # Read and log any incoming data from Arduino
+        read_arduino_logs()
 
         # Minimal delay for headless mode (maximize FPS)
         time.sleep(0.001)
 
 # Cleanup
 print("\nCleaning up...")
-send_error_value(0)  # Send zero error (stop motors)
+send_error_value(0, direction=DIR_WAITING)  # Send zero error with WAITING state (stop motors)
 time.sleep(0.1)
 arduino_serial.close()
 camera.stop()
+arduino_logger.close()
 print("Done!")
 
 # Print final statistics
